@@ -1,11 +1,11 @@
 import javax.swing.SwingUtilities;
 
-import gui.Gui;
+import gui.VentanaPrincipal;
 
 public class App {
     public static void main(String[] args) throws Exception {
          SwingUtilities.invokeLater(() -> {
-            Gui ventana = new Gui();
+            VentanaPrincipal ventana = new VentanaPrincipal();
             ventana.setVisible(true);
         });
     }

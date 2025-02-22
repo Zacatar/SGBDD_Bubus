@@ -3,6 +3,7 @@ package gui;
 import javax.swing.*;
 
 import database.ConexionNeo4j;
+import database.ConexionSQLServer;
 
 import java.awt.*;
 
@@ -11,6 +12,7 @@ public class PanelConexion extends JFrame {
     private JButton btnConectarSQL, btnConectarMongo, btnConectarNeo4j;
     private JLabel estadoSQL, estadoMongo, estadoNeo4j;
     private ConexionNeo4j conexionNeo4j;
+    private ConexionSQLServer conexionSQL;
 
 
     public PanelConexion() {
@@ -41,15 +43,13 @@ public class PanelConexion extends JFrame {
     }
 
     private void conectarSQL() {
-        estadoSQL.setText("Conectado ✔");
-        /*
+
         conexionSQL = new ConexionSQLServer();
         if (conexionSQL.conectar()) {
             estadoSQL.setText("Conectado ✔");
         } else {
             estadoSQL.setText("Error ❌");
         }
-        */
     }
 
     private void conectarMongo() {

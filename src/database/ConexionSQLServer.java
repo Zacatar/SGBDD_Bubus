@@ -5,9 +5,9 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class ConexionSQLServer {
-    private static final String URL = "jdbc:sqlserver://<IP_HAMACHI>:1433;databaseName=Empresa;encrypt=true;trustServerCertificate=true";
+    private static final String URL = "jdbc:sqlserver://localhost:1433;databaseName=ZonaSur;encrypt=true;trustServerCertificate=true";
     private static final String USER = "sa";  
-    private static final String PASSWORD = "tu_contraseña";
+    private static final String PASSWORD = "123456789";
 
     private Connection conexion;
 

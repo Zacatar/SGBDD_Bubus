@@ -1,12 +1,17 @@
 package gui;
 
 import javax.swing.*;
+
+import database.ConexionNeo4j;
+
 import java.awt.*;
 
 public class PanelConexion extends JFrame {
 
     private JButton btnConectarSQL, btnConectarMongo, btnConectarNeo4j;
     private JLabel estadoSQL, estadoMongo, estadoNeo4j;
+    private ConexionNeo4j conexionNeo4j;
+
 
     public PanelConexion() {
         setTitle("Gestión de Conexiones");
@@ -58,17 +63,16 @@ public class PanelConexion extends JFrame {
         }
         */
     }
-
+    
     private void conectarNeo4j() {
-        estadoNeo4j.setText("Conectado ✔");
-        /*
-        conexionNeo4j = new ConexionNeo4j("bolt://localhost:7687", "neo4j", "password");
+    
+        conexionNeo4j = new ConexionNeo4j("bolt://localhost:7687", "neo4j", "chilaquilesconpollo123");
         if (conexionNeo4j.conectar()) {
             estadoNeo4j.setText("Conectado ✔");
         } else {
             estadoNeo4j.setText("Error ❌");
         }
-        */
+        
     }
 
 }

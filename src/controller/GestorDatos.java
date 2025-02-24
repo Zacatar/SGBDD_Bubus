@@ -1,46 +1,44 @@
 package controller;
 
+import database.ConexionSQLServer;
+import database.ConexionMongoDB;
+import database.ConexionNeo4j;
+
 import javax.swing.table.DefaultTableModel;
 import java.util.ArrayList;
 
 public class GestorDatos {
-
+    private ConexionSQLServer conexionSQL;
+    private ConexionMongoDB conexionMongo;
+    private ConexionNeo4j conexionNeo4j;
     private ArrayList<String> historialConsultas;
 
     public GestorDatos() {
         historialConsultas = new ArrayList<>();
+        this.conexionSQL = new ConexionSQLServer();
+        this.conexionMongo = new ConexionMongoDB();
+        this.conexionNeo4j = new ConexionNeo4j("bolt://localhost:7687", "neo4j", "chilaquilesconpollo123");
+
+        if (!conexionSQL.conectar()) {
+            System.err.println("❌ Error al conectar a SQL Server.");
+        }
+        if (!conexionMongo.conectar()) {
+            System.err.println("❌ Error al conectar a MongoDB.");
+        }
+        if (!conexionNeo4j.conectar()) {
+            System.err.println("❌ Error al conectar a Neo4j.");
+        }
     }
 
     public DefaultTableModel ejecutarConsulta(String consulta) {
-        // Simulación de estructura dinámica de la tabla según la consulta
-        String[] columnas;
-        Object[][] datos;
+        DefaultTableModel modelo = new DefaultTableModel();
 
-        if (consulta.toLowerCase().contains("select * from productos")) {
-            columnas = new String[]{"ID", "Nombre", "Precio"};
-            datos = new Object[][]{
-                    {1, "Producto A", 100.0},
-                    {2, "Producto B", 200.0},
-                    {3, "Producto C", 150.5}
-            };
-        } else if (consulta.toLowerCase().contains("select * from clientes")) {
-            columnas = new String[]{"ID", "Nombre", "Email"};
-            datos = new Object[][]{
-                    {1, "Juan Pérez", "juan@example.com"},
-                    {2, "María López", "maria@example.com"},
-                    {3, "Carlos Díaz", "carlos@example.com"}
-            };
-        } else {
-            columnas = new String[]{"Resultado"};
-            datos = new Object[][]{
-                    {"Consulta ejecutada correctamente"}
-            };
+        if (consulta.toLowerCase().startsWith("select")) {
+            modelo = conexionSQL.ejecutarConsulta(consulta);
         }
 
-        // Guardar en historial
         historialConsultas.add(consulta);
-
-        return new DefaultTableModel(datos, columnas);
+        return modelo;
     }
 
     public ArrayList<String> getHistorialConsultas() {

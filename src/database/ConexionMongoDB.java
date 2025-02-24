@@ -6,7 +6,7 @@ import com.mongodb.client.MongoDatabase;
 
 public class ConexionMongoDB {
     private static final String URI = "mongodb://<IP_HAMACHI>:27017";
-    private static final String DATABASE_NAME = "Empresa";
+    private static final String DATABASE_NAME = "ZonaNorte";
 
     private MongoClient mongoClient;
     private MongoDatabase database;
@@ -23,12 +23,6 @@ public class ConexionMongoDB {
         }
     }
 
-    public void cerrarConexion() {
-        if (mongoClient != null) {
-            mongoClient.close();
-            System.out.println("🔴 Conexión a MongoDB cerrada.");
-        }
-    }
 
     public MongoDatabase getDatabase() {
         return database;

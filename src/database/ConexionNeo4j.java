@@ -10,7 +10,7 @@ public class ConexionNeo4j {
     private String uri;
     private String user;
     private String password;
-    private static final String DEFAULT_DATABASE = "ZonaSur";
+    private static final String DEFAULT_DATABASE = "ZonaCentro";
 
     private Driver driver;
 
@@ -32,16 +32,7 @@ public class ConexionNeo4j {
         }
     }
     
-    public Session getSession() {
-        return driver.session(SessionConfig.forDatabase(DEFAULT_DATABASE));
-    }
 
-    public void cerrarConexion() {
-        if (driver != null) {
-            driver.close();
-            System.out.println("🔴 Conexión a Neo4j cerrada.");
-        }
-    }
 
     public Driver getDriver() {
         return driver;

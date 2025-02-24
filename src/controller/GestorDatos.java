@@ -35,6 +35,18 @@ public class GestorDatos {
 
         if (consulta.toLowerCase().startsWith("select")) {
             modelo = conexionSQL.ejecutarConsulta(consulta);
+        } else if (consulta.toLowerCase().startsWith("insert")) {
+            boolean exito = conexionSQL.ejecutarInsert(consulta);
+            modelo.setColumnIdentifiers(new String[]{"Resultado"});
+            modelo.addRow(new Object[]{exito ? "✅ INSERT realizado" : "⚠️ Error en INSERT"});
+        } else if (consulta.toLowerCase().startsWith("update")) {
+            boolean exito = conexionSQL.ejecutarUpdate(consulta);
+            modelo.setColumnIdentifiers(new String[]{"Resultado"});
+            modelo.addRow(new Object[]{exito ? "✅ UPDATE realizado" : "⚠️ Error en UPDATE"});
+        } else if (consulta.toLowerCase().startsWith("delete")) {
+            boolean exito = conexionSQL.ejecutarDelete(consulta);
+            modelo.setColumnIdentifiers(new String[]{"Resultado"});
+            modelo.addRow(new Object[]{exito ? "✅ DELETE realizado" : "⚠️ Error en DELETE"});
         }
 
         historialConsultas.add(consulta);

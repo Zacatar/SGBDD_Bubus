@@ -2,8 +2,6 @@ package database;
 
 import org.neo4j.driver.*;
 import org.neo4j.driver.Record;
-
-import java.util.ArrayList;
 import java.util.Vector;
 import javax.swing.table.DefaultTableModel;
 
@@ -12,7 +10,6 @@ public class ConexionNeo4j {
     private String user;
     private String password;
     private static final String DEFAULT_DATABASE = "zonacentro"; // Nombre de la BD en Neo4j
-
     private Driver driver;
 
     // Constructor
@@ -49,23 +46,14 @@ public class ConexionNeo4j {
     /**
      * 🔹 Ejecutar consultas `SELECT` en Neo4j (Cypher)
      */
-    /**
-     * 🔹 Ejecutar consultas `SELECT` en Neo4j (Cypher)
-     */
-    /**
-     * 🔹 Ejecutar consultas `SELECT` en Neo4j (Cypher)
-     */
     public DefaultTableModel ejecutarConsulta(String consultaSQL) {
         DefaultTableModel modelo = new DefaultTableModel();
         modelo.setColumnIdentifiers(new String[]{"IdCliente", "Nombre", "Estado", "Credito", "Deuda"});
 
-        // 🔹 Transformar SQL a Cypher
         String consultaCypher = transformarSQLaCypher(consultaSQL);
-
-        // 🔹 Validar consulta vacía
         if (consultaCypher.isEmpty()) {
-            System.err.println("⚠️ No se ejecutará una consulta vacía en Neo4j. Verifica la conversión de SQL a Cypher.");
-            return modelo; // Retorna un modelo vacío
+            System.err.println("⚠️ No se ejecutará una consulta vacía en Neo4j.");
+            return modelo;
         }
 
         try (Session session = driver.session(SessionConfig.forDatabase(DEFAULT_DATABASE))) {
@@ -97,7 +85,9 @@ public class ConexionNeo4j {
         return modelo;
     }
 
-
+    /**
+     * 🔹 Transformar SQL a Cypher
+     */
     private String transformarSQLaCypher(String consultaSQL) {
         consultaSQL = consultaSQL.trim().toLowerCase();
 
@@ -109,46 +99,62 @@ public class ConexionNeo4j {
         return "";
     }
 
-
     /**
-     * 🔹 Ejecutar `INSERT` en Neo4j
+     * 🔹 Ejecutar `INSERT` en Neo4j con transacción
      */
     public boolean ejecutarInsert(String consulta) {
-        try (Session session = driver.session(SessionConfig.forDatabase(DEFAULT_DATABASE))) {
-            session.writeTransaction(tx -> tx.run(consulta));
-            System.out.println("✅ INSERT ejecutado en Neo4j correctamente.");
-            return true;
-        } catch (Exception e) {
-            System.err.println("⚠️ Error en `INSERT` en Neo4j: " + e.getMessage());
-            return false;
-        }
+        return ejecutarTransaccion(consulta, "INSERT");
     }
 
     /**
-     * 🔹 Ejecutar `UPDATE` en Neo4j
+     * 🔹 Ejecutar `UPDATE` en Neo4j con transacción
      */
     public boolean ejecutarUpdate(String consulta) {
+        return ejecutarTransaccion(consulta, "UPDATE");
+    }
+
+    /**
+     * 🔹 Ejecutar `DELETE` en Neo4j con transacción
+     */
+    public boolean ejecutarDelete(String consulta) {
+        return ejecutarTransaccion(consulta, "DELETE");
+    }
+
+    /**
+     * 🔹 Ejecutar `INSERT`, `UPDATE`, `DELETE` con control de `COMMIT` y `ROLLBACK`
+     */
+    private boolean ejecutarTransaccion(String consulta, String operacion) {
         try (Session session = driver.session(SessionConfig.forDatabase(DEFAULT_DATABASE))) {
-            session.writeTransaction(tx -> tx.run(consulta));
-            System.out.println("✅ UPDATE ejecutado en Neo4j correctamente.");
-            return true;
+            return session.writeTransaction(tx -> {
+                try {
+                    tx.run(consulta);
+                    tx.commit(); // 🔹 Confirmar transacción
+                    System.out.println("✅ " + operacion + " ejecutado en Neo4j correctamente.");
+                    return true;
+                } catch (Exception e) {
+                    tx.rollback(); // 🔹 Si hay error, revertir la transacción
+                    System.err.println("⚠️ Error en `" + operacion + "` en Neo4j, ejecutando rollback: " + e.getMessage());
+                    return false;
+                }
+            });
         } catch (Exception e) {
-            System.err.println("⚠️ Error en `UPDATE` en Neo4j: " + e.getMessage());
+            System.err.println("❌ Error en transacción de Neo4j: " + e.getMessage());
             return false;
         }
     }
 
     /**
-     * 🔹 Ejecutar `DELETE` en Neo4j
+     * 🔹 Método para ejecutar `ROLLBACK` manualmente
      */
-    public boolean ejecutarDelete(String consulta) {
+    public void rollback() {
         try (Session session = driver.session(SessionConfig.forDatabase(DEFAULT_DATABASE))) {
-            session.writeTransaction(tx -> tx.run(consulta));
-            System.out.println("✅ DELETE ejecutado en Neo4j correctamente.");
-            return true;
+            session.writeTransaction(tx -> {
+                tx.rollback();
+                System.err.println("🔄 Rollback ejecutado en Neo4j.");
+                return null;
+            });
         } catch (Exception e) {
-            System.err.println("⚠️ Error en `DELETE` en Neo4j: " + e.getMessage());
-            return false;
+            System.err.println("❌ Error al hacer rollback en Neo4j: " + e.getMessage());
         }
     }
 

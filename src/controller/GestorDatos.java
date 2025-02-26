@@ -1,5 +1,6 @@
 package controller;
 
+import java.util.concurrent.*;
 import database.ConexionSQLServer;
 import database.ConexionSQLServerNorte;
 import database.ConexionNeo4j;
@@ -12,9 +13,12 @@ public class GestorDatos {
     private final ConexionSQLServerNorte conexionSQLNorte;
     private final ConexionNeo4j conexionNeo4j;
     private final ArrayList<String> historialConsultas;
+    private final ExecutorService executor;
 
     public GestorDatos() {
         historialConsultas = new ArrayList<>();
+        executor = Executors.newFixedThreadPool(3); // Pool de hilos para manejar transacciones concurrentes.
+
         this.conexionSQLCentro = new ConexionSQLServer();
         this.conexionSQLNorte = new ConexionSQLServerNorte();
         this.conexionNeo4j = new ConexionNeo4j("bolt://25.3.62.48:7687", "neo4j", "chilaquilesconpollo123");
@@ -34,11 +38,11 @@ public class GestorDatos {
         if (consulta.toLowerCase().startsWith("select")) {
             return ejecutarSelectDistribuido(consulta);
         } else if (consulta.toLowerCase().startsWith("insert")) {
-            return ejecutarInsertDistribuido(consulta);
+            return ejecutarTransaccionDistribuida(consulta, "INSERT");
         } else if (consulta.toLowerCase().startsWith("update")) {
-            return ejecutarUpdateDistribuido(consulta);
+            return ejecutarTransaccionDistribuida(consulta, "UPDATE");
         } else if (consulta.toLowerCase().startsWith("delete")) {
-            return ejecutarDeleteDistribuido(consulta);
+            return ejecutarTransaccionDistribuida(consulta, "DELETE");
         }
 
         historialConsultas.add(consulta);
@@ -46,64 +50,64 @@ public class GestorDatos {
     }
 
     private DefaultTableModel ejecutarSelectDistribuido(String consulta) {
-        List<DefaultTableModel> resultados = new ArrayList<>();
+        List<Future<DefaultTableModel>> resultadosFuturos = new ArrayList<>();
 
-        DefaultTableModel sqlCentroResult = conexionSQLCentro.ejecutarConsulta(consulta);
-        if (sqlCentroResult != null && sqlCentroResult.getRowCount() > 0) {
-            resultados.add(sqlCentroResult);
-            System.out.println("📌 Registros obtenidos de SQL Server (Zona Centro): " + sqlCentroResult.getRowCount());
-        }
+        resultadosFuturos.add(executor.submit(() -> conexionSQLCentro.ejecutarConsulta(consulta)));
+        resultadosFuturos.add(executor.submit(() -> conexionSQLNorte.ejecutarConsulta(consulta)));
+        resultadosFuturos.add(executor.submit(() -> {
+            String consultaCypher = convertirSQLaCypher(consulta);
+            return !consultaCypher.isEmpty() ? conexionNeo4j.ejecutarConsulta(consultaCypher) : new DefaultTableModel();
+        }));
 
-        DefaultTableModel sqlNorteResult = conexionSQLNorte.ejecutarConsulta(consulta);
-        if (sqlNorteResult != null && sqlNorteResult.getRowCount() > 0) {
-            resultados.add(sqlNorteResult);
-            System.out.println("📌 Registros obtenidos de SQL Server (Zona Norte): " + sqlNorteResult.getRowCount());
-        }
+        return unirResultados(obtenerResultados(resultadosFuturos));
+    }
 
-        String consultaCypher = convertirSQLaCypher(consulta);
-        if (!consultaCypher.isEmpty()) {
-            DefaultTableModel neo4jResult = conexionNeo4j.ejecutarConsulta(consultaCypher);
-            if (neo4jResult != null && neo4jResult.getRowCount() > 0) {
-                resultados.add(neo4jResult);
-                System.out.println("📌 Registros obtenidos de Neo4j: " + neo4jResult.getRowCount());
+    private DefaultTableModel ejecutarTransaccionDistribuida(String consulta, String tipoOperacion) {
+        List<Future<Boolean>> resultadosFuturos = new ArrayList<>();
+
+        resultadosFuturos.add(executor.submit(() -> conexionSQLCentro.ejecutarTransaccion(consulta)));
+        resultadosFuturos.add(executor.submit(() -> conexionSQLNorte.ejecutarTransaccion(consulta)));
+        resultadosFuturos.add(executor.submit(() -> {
+            String consultaCypher = convertirSQLaCypher(consulta);
+            return !consultaCypher.isEmpty() && conexionNeo4j.ejecutarTransaccion(consultaCypher);
+        }));
+
+        boolean exito = validarTransaccion(resultadosFuturos);
+        return resultadoModelo(exito, tipoOperacion);
+    }
+
+    private boolean validarTransaccion(List<Future<Boolean>> resultadosFuturos) {
+        boolean exito = true;
+        for (Future<Boolean> future : resultadosFuturos) {
+            try {
+                if (!future.get()) { // Si alguna transacción falla, se revierte todo.
+                    exito = false;
+                }
+            } catch (InterruptedException | ExecutionException e) {
+                exito = false;
+                System.err.println("❌ Error en transacción distribuida: " + e.getMessage());
             }
         }
-
-        return unirResultados(resultados);
+        return exito;
     }
 
-    private DefaultTableModel ejecutarInsertDistribuido(String consulta) {
-        boolean exitoCentro = conexionSQLCentro.ejecutarInsert(consulta);
-        boolean exitoNorte = conexionSQLNorte.ejecutarInsert(consulta);
-
-        String consultaCypher = convertirSQLaCypher(consulta);
-        boolean exitoNeo4j = !consultaCypher.isEmpty() && conexionNeo4j.ejecutarInsert(consultaCypher);
-
-        return resultadoModelo(exitoCentro || exitoNorte || exitoNeo4j, "INSERT");
-    }
-
-    private DefaultTableModel ejecutarUpdateDistribuido(String consulta) {
-        boolean exitoCentro = conexionSQLCentro.ejecutarUpdate(consulta);
-        boolean exitoNorte = conexionSQLNorte.ejecutarUpdate(consulta);
-
-        String consultaCypher = convertirSQLaCypher(consulta);
-        boolean exitoNeo4j = !consultaCypher.isEmpty() && conexionNeo4j.ejecutarUpdate(consultaCypher);
-
-        return resultadoModelo(exitoCentro || exitoNorte || exitoNeo4j, "UPDATE");
-    }
-
-    private DefaultTableModel ejecutarDeleteDistribuido(String consulta) {
-        boolean exitoCentro = conexionSQLCentro.ejecutarDelete(consulta);
-        boolean exitoNorte = conexionSQLNorte.ejecutarDelete(consulta);
-
-        String consultaCypher = convertirSQLaCypher(consulta);
-        boolean exitoNeo4j = !consultaCypher.isEmpty() && conexionNeo4j.ejecutarDelete(consultaCypher);
-
-        return resultadoModelo(exitoCentro || exitoNorte || exitoNeo4j, "DELETE");
+    private List<DefaultTableModel> obtenerResultados(List<Future<DefaultTableModel>> resultadosFuturos) {
+        List<DefaultTableModel> resultados = new ArrayList<>();
+        for (Future<DefaultTableModel> future : resultadosFuturos) {
+            try {
+                DefaultTableModel resultado = future.get();
+                if (resultado != null && resultado.getRowCount() > 0) {
+                    resultados.add(resultado);
+                }
+            } catch (InterruptedException | ExecutionException e) {
+                System.err.println("❌ Error al obtener resultados de consulta distribuida: " + e.getMessage());
+            }
+        }
+        return resultados;
     }
 
     private String convertirSQLaCypher(String consultaSQL) {
-        consultaSQL = consultaSQL.trim().toLowerCase(); // Normalizamos a minúsculas
+        consultaSQL = consultaSQL.trim().toLowerCase();
 
         if (consultaSQL.endsWith(";")) {
             consultaSQL = consultaSQL.substring(0, consultaSQL.length() - 1);
@@ -111,38 +115,24 @@ public class GestorDatos {
 
         System.out.println("🔍 Transformando SQL a Cypher: " + consultaSQL);
 
-        // 🔹 Transformar SELECT
         if (consultaSQL.equals("select * from clientes")) {
             return "MATCH (c:Cliente) RETURN c.IdCliente AS IdCliente, c.Nombre AS Nombre, c.Estado AS Estado, c.Credito AS Credito, c.Deuda AS Deuda";
-        }
-
-        // 🔹 Transformar INSERT (se debe mejorar para manejar valores dinámicos)
-        else if (consultaSQL.startsWith("insert into clientes")) {
-            return consultaSQL
-                    .replace("insert into clientes", "CREATE (c:Cliente {")
-                    .replace("values", "})")
-                    .replace("(", "{")
-                    .replace(")", "}");
-        }
-
-        // 🔹 Transformar UPDATE
-        else if (consultaSQL.startsWith("update clientes set")) {
-            return consultaSQL
-                    .replace("update clientes set", "MATCH (c:Cliente) SET")
-                    .replace("where", "WHERE c.");
-        }
-
-        // 🔹 Transformar DELETE
-        else if (consultaSQL.startsWith("delete from clientes where")) {
-            return consultaSQL
-                    .replace("delete from clientes where", "MATCH (c:Cliente) WHERE c.")
-                    .concat(" DETACH DELETE c");
+        } else if (consultaSQL.startsWith("insert into clientes")) {
+            return consultaSQL.replace("insert into clientes", "CREATE (c:Cliente {")
+                              .replace("values", "})")
+                              .replace("(", "{")
+                              .replace(")", "}");
+        } else if (consultaSQL.startsWith("update clientes set")) {
+            return consultaSQL.replace("update clientes set", "MATCH (c:Cliente) SET")
+                              .replace("where", "WHERE c.");
+        } else if (consultaSQL.startsWith("delete from clientes where")) {
+            return consultaSQL.replace("delete from clientes where", "MATCH (c:Cliente) WHERE c.")
+                              .concat(" DETACH DELETE c");
         }
 
         System.err.println("⚠️ Consulta SQL no reconocida para transformación a Cypher: " + consultaSQL);
         return "";
     }
-
 
     private DefaultTableModel unirResultados(List<DefaultTableModel> resultados) {
         DefaultTableModel modeloUnificado = new DefaultTableModel();
@@ -161,5 +151,16 @@ public class GestorDatos {
         modelo.setColumnIdentifiers(new String[]{"Resultado"});
         modelo.addRow(new Object[]{exito ? "✅ " + operacion + " realizado" : "⚠️ Error en " + operacion});
         return modelo;
+    }
+
+    public void cerrar() {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(2, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            executor.shutdownNow();
+        }
     }
 }

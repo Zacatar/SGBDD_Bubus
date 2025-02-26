@@ -17,7 +17,7 @@ public class ConexionSQLServerNorte {
     public boolean conectar() {
         try {
             conexion = DriverManager.getConnection(URL, USER, PASSWORD);
-            conexion.setAutoCommit(true);
+            conexion.setAutoCommit(false); // 🔹 Se desactiva autoCommit para manejar transacciones manualmente.
             System.out.println("✅ Conexión a SQL Server (Zona Norte) establecida.");
             return true;
         } catch (SQLException e) {
@@ -107,15 +107,31 @@ public class ConexionSQLServerNorte {
         try (Statement stmt = conexion.createStatement()) {
             int filasAfectadas = stmt.executeUpdate(consulta);
             if (filasAfectadas > 0) {
-                System.out.println("✅ Modificación realizada correctamente en SQL Server (Zona Norte): " + consulta);
+                conexion.commit(); // 🔹 Se confirma la transacción solo si la operación fue exitosa.
+                System.out.println("✅ Transacción confirmada en SQL Server (Zona Norte): " + consulta);
                 return true;
             } else {
                 System.out.println("⚠️ No se modificaron registros en SQL Server (Zona Norte).");
                 return false;
             }
         } catch (SQLException e) {
-            System.err.println("⚠️ Error al ejecutar modificación en SQL Server (Zona Norte): " + e.getMessage());
+            System.err.println("⚠️ Error en transacción de SQL Server (Zona Norte), ejecutando rollback: " + e.getMessage());
+            rollback(); // 🔹 Si hay error, se revierte la transacción.
             return false;
+        }
+    }
+
+    /**
+     * 🔹 Método para ejecutar `ROLLBACK`
+     */
+    public void rollback() {
+        try {
+            if (conexion != null) {
+                conexion.rollback();
+                System.err.println("🔄 Rollback ejecutado en SQL Server (Zona Norte).");
+            }
+        } catch (SQLException e) {
+            System.err.println("❌ Error al hacer rollback en SQL Server (Zona Norte): " + e.getMessage());
         }
     }
 }

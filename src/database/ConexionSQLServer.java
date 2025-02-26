@@ -17,7 +17,7 @@ public class ConexionSQLServer {
     public boolean conectar() {
         try {
             conexion = DriverManager.getConnection(URL, USER, PASSWORD);
-            conexion.setAutoCommit(true); // 🔹 Asegura que todas las consultas se confirmen automáticamente
+            conexion.setAutoCommit(false); // 🔹 Se desactiva autoCommit para manejar transacciones manualmente.
             System.out.println("✅ Conexión a SQL Server establecida.");
             return true;
         } catch (SQLException e) {
@@ -40,7 +40,6 @@ public class ConexionSQLServer {
         try (Statement stmt = conexion.createStatement();
              ResultSet rs = stmt.executeQuery(consulta)) {
 
-            // Obtener metadatos de la consulta (nombres de columnas)
             ResultSetMetaData metaData = rs.getMetaData();
             int columnas = metaData.getColumnCount();
 
@@ -108,15 +107,31 @@ public class ConexionSQLServer {
         try (Statement stmt = conexion.createStatement()) {
             int filasAfectadas = stmt.executeUpdate(consulta);
             if (filasAfectadas > 0) {
-                System.out.println("✅ Modificación realizada correctamente: " + consulta);
+                conexion.commit(); // 🔹 Se confirma la transacción solo si la operación fue exitosa.
+                System.out.println("✅ Transacción confirmada en SQL Server: " + consulta);
                 return true;
             } else {
                 System.out.println("⚠️ No se modificaron registros.");
                 return false;
             }
         } catch (SQLException e) {
-            System.err.println("⚠️ Error al ejecutar modificación en SQL Server: " + e.getMessage());
+            System.err.println("⚠️ Error en transacción de SQL Server, ejecutando rollback: " + e.getMessage());
+            rollback(); // 🔹 Si hay error, se revierte la transacción.
             return false;
+        }
+    }
+
+    /**
+     * 🔹 Método para ejecutar `ROLLBACK`
+     */
+    public void rollback() {
+        try {
+            if (conexion != null) {
+                conexion.rollback();
+                System.err.println("🔄 Rollback ejecutado en SQL Server.");
+            }
+        } catch (SQLException e) {
+            System.err.println("❌ Error al hacer rollback en SQL Server: " + e.getMessage());
         }
     }
 }
